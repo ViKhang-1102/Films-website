@@ -1,0 +1,22 @@
+:root {
+  --admin-bg: #0f0f10;
+  --admin-panel: #111214;
+  --admin-border: #2a2d33;
+  --admin-gold: #f5c518;
+}
+
+body { background-color: var(--admin-bg); }
+
+.admin-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+.admin-sidebar { min-height: 100vh; width: 260px; position: sticky; top: 0; }
+.admin-topbar { position: sticky; top: 0; z-index: 1020; }
+
+.nav-link { border-radius: .375rem; }
+.nav-link:hover, .nav-link.active { background: #1a1c20; color: var(--admin-gold) !important; }
+
+.card { background-color: #0d0e10; border: 1px solid var(--admin-border); }
+.table { --bs-table-bg: #0d0e10; --bs-table-border-color: var(--admin-border); }
+
+.sidebar-collapsed .admin-sidebar { display: none; }
+.sidebar-collapsed .admin-layout { grid-template-columns: 1fr; }
+

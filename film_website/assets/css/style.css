@@ -1,0 +1,81 @@
+/* Theme colors */
+:root {
+  --bg-black: #0b0b0b;
+  --bg-dark: #111111;
+  --text-light: #e6e6e6;
+  --text-muted: #9aa0a6;
+  --border: #2a2a2a;
+  --gold: #f5c518; /* IMDb gold tone */
+}
+
+html, body {
+  background-color: var(--bg-dark);
+  color: var(--text-light);
+}
+
+.bg-black { background-color: #000 !important; }
+
+/* Navbar */
+.navbar .nav-link { color: #cfcfcf; }
+.navbar .nav-link.active, .navbar .nav-link:hover { color: var(--gold); }
+.navbar-brand { letter-spacing: .5px; }
+
+/* Search input */
+.form-control::placeholder { color: #6c757d; }
+
+/* Buttons */
+.btn-warning {
+  background-color: var(--gold);
+  border-color: var(--gold);
+  color: #111;
+}
+.btn-warning:hover { filter: brightness(0.95); }
+
+/* Cards (movie items) */
+.card.movie-card {
+  background-color: var(--bg-black);
+  border: 1px solid var(--border);
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+.card.movie-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 24px rgba(0,0,0,.5);
+}
+.movie-thumb {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 2/3;
+}
+.movie-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .4s ease; }
+.card.movie-card:hover .movie-thumb img { transform: scale(1.06); }
+
+.movie-meta { color: var(--text-muted); font-size: .925rem; }
+
+/* Section headings */
+.section-title { border-left: 4px solid var(--gold); padding-left: .75rem; }
+
+/* Carousel banner */
+.banner-carousel .carousel-item { height: 420px; }
+.banner-carousel .carousel-item img { width: 100%; height: 100%; object-fit: cover; filter: brightness(.7); }
+.banner-overlay {
+  position: absolute; inset: 0; background: linear-gradient(90deg, rgba(0,0,0,.7) 0%, rgba(0,0,0,.25) 60%, rgba(0,0,0,0) 100%);
+}
+.banner-caption { position: absolute; left: 3rem; bottom: 3rem; max-width: 560px; }
+
+/* Footer */
+.hover-gold:hover { color: var(--gold) !important; }
+
+/* Profile */
+.avatar {
+  width: 96px; height: 96px; object-fit: cover; border-radius: 50%; border: 2px solid var(--gold);
+}
+
+/* Utilities */
+.badge-outline { border: 1px solid var(--border); color: var(--text-muted); }
+
+/* Responsive tweaks */
+@media (max-width: 576px) {
+  .banner-caption { left: 1rem; right: 1rem; bottom: 1.25rem; }
+  .banner-carousel .carousel-item { height: 320px; }
+}
+
