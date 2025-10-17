@@ -54,7 +54,20 @@
         <table class="table table-dark table-striped align-middle">
           <thead><tr><th>#</th><th>Tiêu đề</th><th>Thể loại</th><th>Năm</th><th>Video</th></tr></thead>
           <tbody>
-            <?php $latest = $mysqli->query('SELECT m.*, c.name category_name FROM movies m LEFT JOIN categories c ON c.id=m.category_id ORDER BY m.created_at DESC LIMIT 5'); $i=1; while($m=$latest->fetch_assoc()): ?>
+            <?php
+              $latest = $mysqli->query("
+                SELECT 
+                  m.*,
+                  GROUP_CONCAT(c.name SEPARATOR ', ') AS category_name
+                FROM movies m
+                LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+                LEFT JOIN categories c ON mc.category_id = c.id
+                GROUP BY m.id
+                ORDER BY m.created_at DESC
+                LIMIT 5
+              ");
+              $i=1; while($m=$latest->fetch_assoc()):
+            ?>
             <tr>
               <td><?php echo $i++; ?></td>
               <td><?php echo htmlspecialchars($m['title']); ?></td>

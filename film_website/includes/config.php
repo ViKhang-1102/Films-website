@@ -14,7 +14,10 @@ if ($mysqli->connect_errno) {
 // Thiết lập charset UTF-8
 $mysqli->set_charset('utf8mb4');
 
-// Bật session toàn site nếu chưa có
+// Bật output buffering để tránh "headers already sent" do accidental output
+if (function_exists('ob_start')) ob_start();
+
+// Khởi động session nếu cần
 if (session_status() === PHP_SESSION_NONE) {
   session_start();
 }

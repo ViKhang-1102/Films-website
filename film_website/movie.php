@@ -1,7 +1,8 @@
+<?php
+require __DIR__ . '/includes/config.php'; ?>
+<?php require __DIR__ . '/includes/functions.php'; ?>
 <?php include __DIR__ . '/includes/header.php'; ?>
 <?php include __DIR__ . '/includes/navbar.php'; ?>
-<?php require __DIR__ . '/includes/config.php'; ?>
-<?php require __DIR__ . '/includes/functions.php'; ?>
 
 <?php
 $id = (int)($_GET['id'] ?? 0);
@@ -10,6 +11,84 @@ if (!$movie) {
   echo '<div class="container my-5"><div class="alert alert-warning">Phim không tồn tại.</div></div>';
   include __DIR__ . '/includes/footer.php';
   exit;
+}
+
+// Lấy các thể loại của phim
+$stmt = $mysqli->prepare('
+  SELECT c.name 
+  FROM movie_categories mc 
+  JOIN categories c ON mc.category_id = c.id 
+  WHERE mc.movie_id = ?
+');
+$stmt->bind_param('i', $id);
+$stmt->execute();
+$categories = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+// Lấy danh sách tập phim
+$stmt = $mysqli->prepare('SELECT * FROM episodes WHERE movie_id = ? ORDER BY episode_number ASC');
+$stmt->bind_param('i', $id);
+$stmt->execute();
+$episodes = $stmt->get_result();
+$stmt->close();
+
+// --- FIX: đảm bảo $videoUrl luôn được thiết lập từ DB (trước khi gọi getEmbedHtml)
+$videoUrl = trim($movie['video_url'] ?? '');
+
+// helper: chuyển Google Drive share link thành link trực tiếp có thể dùng làm src video
+function convertPlayableUrl(string $url): string {
+  $url = trim($url);
+  if ($url === '') return '';
+  // Các dạng link Drive thông dụng: /file/d/FILEID/view hoặc open?id=FILEID
+  if (preg_match('#drive.google.com/(?:file/d/|open\\?id=)([A-Za-z0-9_-]+)#', $url, $m)) {
+    return 'https://drive.google.com/uc?export=download&id=' . $m[1];
+  }
+  // Nếu đã là link trực tiếp hoặc khác thì trả về nguyên trạng
+  return $url;
+}
+
+function isDriveLink(string $url): bool {
+  return (bool) preg_match('#drive.google.com/(?:file/d/|open\\?id=|uc\\?id=)([A-Za-z0-9_-]+)#', $url);
+}
+function getDrivePreviewUrl(string $url): string {
+  if (preg_match('#drive.google.com/(?:file/d/|open\\?id=)([A-Za-z0-9_-]+)#', $url, $m)) {
+    return 'https://drive.google.com/file/d/' . $m[1] . '/preview';
+  }
+  if (preg_match('#id=([A-Za-z0-9_-]+)#', $url, $m)) {
+    return 'https://drive.google.com/file/d/' . $m[1] . '/preview';
+  }
+  return $url;
+}
+
+// New: tạo HTML embed responsive cho YouTube hoặc Google Drive
+function getEmbedHtml(string $url, string $title = ''): string {
+  $url = trim($url);
+  if ($url === '') {
+    return '<div class="p-3 text-center text-muted">No video available.</div>';
+  }
+
+  // YouTube: nhiều dạng URL -> lấy videoId
+  if (preg_match('#(?:youtube\.com/watch\?v=|youtube\.com/embed/|youtu\.be/)([A-Za-z0-9_-]{6,})#', $url, $m)) {
+    $vid = $m[1];
+    $embed = 'https://www.youtube.com/embed/' . $vid . '?rel=0';
+  } elseif (preg_match('#(?:youtube\.com.*[?&]v=)([A-Za-z0-9_-]{6,})#', $url, $m)) {
+    $vid = $m[1];
+    $embed = 'https://www.youtube.com/embed/' . $vid . '?rel=0';
+  }
+  // Google Drive
+  elseif (isDriveLink($url)) {
+    $embed = getDrivePreviewUrl($url);
+  } else {
+    // Nếu là file media trực tiếp hoặc link khác, giữ nguyên
+    $embed = $url;
+  }
+
+  // chuẩn bị iframe (gán data-src để script show/hidden có thể quản lý)
+  $safeTitle = htmlspecialchars($title ?: 'Video', ENT_QUOTES);
+  $iframe = '<iframe class="w-100 h-100 border-0 rounded" src="' . htmlspecialchars($embed, ENT_QUOTES) . '" data-src="' . htmlspecialchars($embed, ENT_QUOTES) . '" title="' . $safeTitle . '" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>';
+
+  // Bootstrap 5 ratio 16:9, bo tròn và shadow-sm
+  return '<div class="ratio ratio-16x9 rounded shadow-sm overflow-hidden bg-black">' . $iframe . '</div>';
 }
 ?>
 
@@ -29,14 +108,33 @@ if (!$movie) {
       <div class="row g-3 small">
         <div class="col-sm-6 col-lg-4"><span class="text-secondary">Thời lượng:</span> <strong><?php echo htmlspecialchars($movie['duration'] ?: '—'); ?></strong></div>
         <div class="col-sm-6 col-lg-4"><span class="text-secondary">Năm:</span> <strong><?php echo htmlspecialchars($movie['year'] ?: '—'); ?></strong></div>
-        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Thể loại:</span> <span class="badge text-bg-dark border border-secondary"><?php echo htmlspecialchars($movie['category_name'] ?? '—'); ?></span></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Số tập:</span> <strong><?php echo $episodes->num_rows; ?> tập</strong></div>
+        <div class="col-12">
+          <span class="text-secondary">Thể loại:</span> 
+          <?php if (!empty($categories)): ?>
+            <?php foreach ($categories as $cat): ?>
+              <span class="badge text-bg-dark border border-secondary me-1"><?php echo htmlspecialchars($cat['name']); ?></span>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <span class="text-muted">Chưa phân loại</span>
+          <?php endif; ?>
+        </div>
         <div class="col-sm-6 col-lg-4"><span class="text-secondary">Đạo diễn:</span> <strong>Nguyễn Văn A</strong></div>
         <div class="col-sm-6 col-lg-4"><span class="text-secondary">Diễn viên:</span> <strong>Trần B, Lê C</strong></div>
         <div class="col-sm-6 col-lg-4"><span class="text-secondary">Quốc gia:</span> <strong>Mỹ</strong></div>
       </div>
 
-      <div class="mt-4 d-flex gap-2">
-        <a href="<?php echo htmlspecialchars($movie['video_url'] ?: '#'); ?>" class="btn btn-warning"><i class="fa-solid fa-play me-2"></i>Xem ngay</a>
+      <div class="mt-4 d-flex gap-2 flex-wrap">
+        <?php if ($episodes->num_rows > 0): ?>
+          <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#episodesModal">
+            <i class="fa-solid fa-list me-2"></i>Chọn tập phim
+          </button>
+        <?php else: ?>
+          <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#playerModal" <?php echo empty($movie['video_url']) ? 'disabled' : ''; ?>>
+            <i class="fa-solid fa-play me-2"></i>Xem ngay
+          </button>
+        <?php endif; ?>
+        
         <?php if (isset($_SESSION['user'])): ?>
           <?php $fav = userHasFavorite($mysqli, (int)$_SESSION['user']['id'], (int)$movie['id']); ?>
           <form method="post" action="<?php echo BASE_PATH . '/favorite.php'; ?>">
@@ -80,5 +178,167 @@ if (!$movie) {
   </div>
 </main>
 
-<?php include __DIR__ . '/includes/footer.php'; ?>
+<!-- Modal chọn tập phim -->
+<div class="modal fade" id="episodesModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title mb-0">
+          <i class="fa-solid fa-list me-2"></i>Chọn tập phim - <?php echo htmlspecialchars($movie['title']); ?>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <?php 
+          $episodes->data_seek(0); // Reset pointer
+          while($episode = $episodes->fetch_assoc()): 
+          ?>
+          <div class="col-md-6">
+            <div class="card bg-black border-secondary h-100 episode-card" data-episode-id="<?php echo $episode['id']; ?>" data-video-url="<?php echo htmlspecialchars($episode['video_url']); ?>">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                  <h6 class="card-title text-warning mb-0"><?php echo htmlspecialchars($episode['title']); ?></h6>
+                  <span class="badge bg-info">Tập <?php echo $episode['episode_number']; ?></span>
+                </div>
+                <?php if ($episode['description']): ?>
+                  <p class="card-text text-secondary small"><?php echo htmlspecialchars($episode['description']); ?></p>
+                <?php endif; ?>
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted">
+                    <i class="fa-solid fa-clock me-1"></i><?php echo htmlspecialchars($episode['duration'] ?: '—'); ?>
+                  </small>
+                  <button class="btn btn-sm btn-warning play-episode" data-episode-id="<?php echo $episode['id']; ?>">
+                    <i class="fa-solid fa-play me-1"></i>Xem
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <?php endwhile; ?>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
+<!-- Video player modal -->
+<div class="modal fade" id="playerModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-centered">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-0">
+        <h5 class="modal-title mb-0"><?php echo htmlspecialchars($movie['title']); ?></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-3">
+        <?php
+          // Hiển thị embed; nếu muốn hiển thị tập được chọn thì truyền video của tập tương ứng
+          echo getEmbedHtml($videoUrl, $movie['title']);
+        ?>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  var modalEl = document.getElementById('playerModal');
+  if (!modalEl) return;
+
+  // Helper: build embed src từ một URL YouTube/Drive hoặc trả về nguyên trạng
+  function buildEmbedSrc(url) {
+    if (!url) return '';
+    url = url.trim();
+    // YouTube: youtu.be/ID or v=ID
+    var m;
+    m = url.match(/(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+    if (!m) m = url.match(/[?&]v=([A-Za-z0-9_-]{6,})/);
+    if (m) return 'https://www.youtube.com/embed/' + m[1] + '?rel=0';
+    // Google Drive: /file/d/ID/ or open?id=ID or id=ID
+    m = url.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([A-Za-z0-9_-]+)/) || url.match(/[?&]id=([A-Za-z0-9_-]+)/);
+    if (m) return 'https://drive.google.com/file/d/' + m[1] + '/preview';
+    // fallback: return original url
+    return url;
+  }
+
+  // Khi đóng modal: dừng video và clear iframe src
+  modalEl.addEventListener('hidden.bs.modal', function () {
+    try {
+      var video = modalEl.querySelector('video');
+      if (video) {
+        video.pause();
+        video.currentTime = 0;
+      }
+      var iframe = modalEl.querySelector('iframe');
+      if (iframe) {
+        // lưu src gốc nếu cần (data-orig) và dọn src để stop playback
+        if (!iframe.dataset.orig) iframe.dataset.orig = iframe.src || iframe.getAttribute('data-src') || '';
+        iframe.src = 'about:blank';
+      }
+    } catch(e){}
+  });
+
+  // Khi modal mở (khi bấm "Xem ngay" dùng movie.videoUrl đã render sẵn)
+  modalEl.addEventListener('show.bs.modal', function () {
+    try {
+      var iframe = modalEl.querySelector('iframe');
+      if (iframe) {
+        var orig = iframe.dataset.orig || iframe.getAttribute('data-src') || iframe.src || '';
+        if (orig && (iframe.src === '' || iframe.src.indexOf('about:blank') === 0)) {
+          iframe.src = orig;
+        }
+      }
+      // nếu có thẻ <video> kiểm tra và load source nếu cần
+      var video = modalEl.querySelector('video');
+      if (video) {
+        var srcEl = video.querySelector('source');
+        if (srcEl && srcEl.dataset.src && (!srcEl.src || srcEl.src === '')) {
+          srcEl.src = srcEl.dataset.src;
+          video.load();
+        }
+      }
+    } catch(e){}
+  });
+
+  // Khi bấm nút "Xem" của 1 tập -> build embed src, đặt vào modal và show modal
+  document.querySelectorAll('.play-episode').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      var card = btn.closest('.episode-card');
+      if (!card) return;
+      var raw = card.dataset.videoUrl || '';
+      var embed = buildEmbedSrc(raw);
+      if (!embed) {
+        alert('Không tìm thấy nguồn video cho tập này.');
+        return;
+      }
+
+      var body = modalEl.querySelector('.modal-body');
+      if (!body) return;
+
+      // Tạo/ghi đè nội dung modal body bằng iframe responsive (Bootstrap ratio 16:9)
+      body.innerHTML = '';
+      var wrap = document.createElement('div');
+      wrap.className = 'ratio ratio-16x9 rounded shadow-sm overflow-hidden bg-black';
+      var ifr = document.createElement('iframe');
+      ifr.className = 'w-100 h-100 border-0 rounded';
+      ifr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+      ifr.setAttribute('allowfullscreen', '');
+      ifr.dataset.orig = embed;
+      ifr.src = embed;
+      wrap.appendChild(ifr);
+      body.appendChild(wrap);
+
+      // show modal bằng bootstrap API
+      try {
+        var bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        bsModal.show();
+      } catch(e){}
+    });
+  });
+
+  // Nếu có nút "Xem ngay" dùng movie.videoUrl, đảm bảo modal body đã có iframe (server-side getEmbedHtml đã in sẵn).
+  // Nếu muốn cập nhật khi bấm "Xem ngay" mà không dùng data-bs-toggle, bạn có thể bind tương tự.
+});
+</script>
+
+<?php include __DIR__ . '/includes/footer.php'; ?>

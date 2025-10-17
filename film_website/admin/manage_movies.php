@@ -32,9 +32,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Xóa phim
 if ($action === 'delete') {
   $id = (int)($_GET['id'] ?? 0);
-  $stmt = $mysqli->prepare('DELETE FROM movies WHERE id=?');
-  $stmt->bind_param('i', $id);
-  $stmt->execute();
+  if ($id > 0) {
+    $mysqli->begin_transaction();
+    try {
+      // Xóa các liên kết trước (favorites, comments, ... nếu có)
+      $stmt = $mysqli->prepare('DELETE FROM favorites WHERE movie_id = ?');
+      $stmt->bind_param('i', $id);
+      $stmt->execute();
+      $stmt->close();
+
+      // Sau đó xóa phim
+      $stmt = $mysqli->prepare('DELETE FROM movies WHERE id = ?');
+      $stmt->bind_param('i', $id);
+      $stmt->execute();
+      $stmt->close();
+
+      $mysqli->commit();
+    } catch (Exception $e) {
+      $mysqli->rollback();
+      // (tùy bạn) log lỗi hoặc hiển thị thông báo
+    }
+  }
   redirect(BASE_PATH . '/admin/manage_movies.php');
 }
 
@@ -49,7 +67,19 @@ if ($action === 'edit') {
 }
 
 $cats = getCategories($mysqli);
-$movies = $mysqli->query('SELECT m.*, c.name AS category_name FROM movies m LEFT JOIN categories c ON m.category_id = c.id ORDER BY m.created_at DESC');
+// Lấy danh sách phim với thông tin thể loại và số tập
+$movies = $mysqli->query('
+  SELECT 
+    m.*,
+    GROUP_CONCAT(c.name SEPARATOR ", ") AS categories,
+    COUNT(e.id) AS episode_count
+  FROM movies m 
+  LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+  LEFT JOIN categories c ON mc.category_id = c.id
+  LEFT JOIN episodes e ON m.id = e.movie_id
+  GROUP BY m.id
+  ORDER BY m.created_at DESC
+');
 ?>
 
 <main class="container-fluid my-4 my-md-5">
@@ -66,20 +96,71 @@ $movies = $mysqli->query('SELECT m.*, c.name AS category_name FROM movies m LEFT
         <div class="card-body">
           <div class="table-responsive">
             <table class="table table-dark table-striped align-middle">
-              <thead><tr><th>#</th><th>Tiêu đề</th><th>Thể loại</th><th>Năm</th><th>Thời lượng</th><th>Video</th><th>Thumbnail</th><th class="text-end">Thao tác</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Ảnh poster</th>
+                  <th>Tên phim</th>
+                  <th>Danh mục</th>
+                  <th>Số tập</th>
+                  <th>Năm</th>
+                  <th>Ngày đăng</th>
+                  <th class="text-end">Thao tác</th>
+                </tr>
+              </thead>
               <tbody>
                 <?php $i=1; while($m=$movies->fetch_assoc()): ?>
                 <tr>
                   <td><?php echo $i++; ?></td>
-                  <td><?php echo htmlspecialchars($m['title']); ?></td>
-                  <td class="text-secondary small"><?php echo htmlspecialchars($m['category_name'] ?? ''); ?></td>
-                  <td><?php echo htmlspecialchars($m['year']); ?></td>
-                  <td><?php echo htmlspecialchars($m['duration']); ?></td>
-                  <td class="small"><a target="_blank" class="text-warning" href="<?php echo htmlspecialchars($m['video_url']); ?>">Mở</a></td>
-                  <td><img src="<?php echo htmlspecialchars($m['thumbnail']); ?>" alt="thumb" style="width:48px;height:48px;object-fit:cover;border-radius:4px"></td>
+                  <td>
+                    <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/100/150'); ?>" 
+                         alt="Poster" 
+                         style="width:60px;height:80px;object-fit:cover;border-radius:6px">
+                  </td>
+                  <td>
+                    <div class="fw-bold"><?php echo htmlspecialchars($m['title']); ?></div>
+                    <small class="text-secondary"><?php echo htmlspecialchars($m['duration'] ?: '—'); ?></small>
+                  </td>
+                  <td>
+                    <?php if ($m['categories']): ?>
+                      <?php 
+                      $categories = explode(', ', $m['categories']);
+                      foreach ($categories as $cat): 
+                      ?>
+                        <span class="badge bg-secondary me-1 mb-1"><?php echo htmlspecialchars(trim($cat)); ?></span>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <span class="text-muted">Chưa phân loại</span>
+                    <?php endif; ?>
+                  </td>
+                  <td>
+                    <span class="badge bg-info"><?php echo (int)$m['episode_count']; ?> tập</span>
+                  </td>
+                  <td><?php echo htmlspecialchars($m['year'] ?: '—'); ?></td>
+                  <td>
+                    <small class="text-secondary">
+                      <?php echo date('d/m/Y', strtotime($m['created_at'])); ?>
+                    </small>
+                  </td>
                   <td class="text-end">
-                    <a class="btn btn-sm btn-outline-warning" href="<?php echo BASE_PATH; ?>/admin/edit_movie.php?id=<?php echo $m['id']; ?>"><i class="fa-regular fa-pen-to-square"></i></a>
-                    <a class="btn btn-sm btn-outline-danger" href="?action=delete&id=<?php echo $m['id']; ?>" onclick="return confirm('Bạn có chắc chắn muốn xóa không?');"><i class="fa-regular fa-trash-can"></i></a>
+                    <div class="btn-group" role="group">
+                      <a class="btn btn-sm btn-outline-warning" 
+                         href="<?php echo BASE_PATH; ?>/admin/edit_movie.php?id=<?php echo $m['id']; ?>" 
+                         title="Chỉnh sửa">
+                        <i class="fa-regular fa-pen-to-square"></i>
+                      </a>
+                      <a class="btn btn-sm btn-outline-info" 
+                         href="<?php echo BASE_PATH; ?>/admin/manage_episodes.php?movie_id=<?php echo $m['id']; ?>" 
+                         title="Quản lý tập">
+                        <i class="fa-solid fa-list"></i>
+                      </a>
+                      <a class="btn btn-sm btn-outline-danger" 
+                         href="?action=delete&id=<?php echo $m['id']; ?>" 
+                         onclick="return confirm('Bạn có chắc chắn muốn xóa phim này không?');" 
+                         title="Xóa">
+                        <i class="fa-regular fa-trash-can"></i>
+                      </a>
+                    </div>
                   </td>
                 </tr>
                 <?php endwhile; ?>

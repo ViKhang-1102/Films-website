@@ -9,7 +9,15 @@ if (!function_exists('sanitize')) {
 
 if (!function_exists('redirect')) {
   function redirect($path) {
-    header('Location: ' . $path);
+    // Nếu headers chưa gửi -> dùng header() như bình thường
+    if (!headers_sent()) {
+      header('Location: ' . $path);
+      exit;
+    }
+    // Nếu headers đã gửi -> fallback: JS + meta refresh (an toàn khi header không thể gửi)
+    $url = htmlspecialchars($path, ENT_QUOTES, 'UTF-8');
+    echo '<script type="text/javascript">window.location.href = "' . $url . '";</script>';
+    echo '<noscript><meta http-equiv="refresh" content="0;url=' . $url . '"></noscript>';
     exit;
   }
 }
@@ -37,7 +45,17 @@ if (!function_exists('getCategories')) {
 // Lấy danh sách phim (có thể giới hạn)
 if (!function_exists('getMovies')) {
   function getMovies($mysqli, $limit = 12) {
-    $sql = "SELECT m.*, c.name AS category_name FROM movies m LEFT JOIN categories c ON m.category_id = c.id ORDER BY m.created_at DESC LIMIT ?";
+    $sql = "
+      SELECT 
+        m.*,
+        GROUP_CONCAT(c.name SEPARATOR ', ') AS category_name
+      FROM movies m
+      LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+      LEFT JOIN categories c ON mc.category_id = c.id
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+      LIMIT ?
+    ";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param('i', $limit);
     $stmt->execute();
@@ -48,7 +66,17 @@ if (!function_exists('getMovies')) {
 // Lấy phim theo id
 if (!function_exists('getMovieById')) {
   function getMovieById($mysqli, $id) {
-    $sql = "SELECT m.*, c.name AS category_name FROM movies m LEFT JOIN categories c ON m.category_id = c.id WHERE m.id = ?";
+    $sql = "
+      SELECT 
+        m.*,
+        GROUP_CONCAT(c.name SEPARATOR ', ') AS category_name
+      FROM movies m
+      LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+      LEFT JOIN categories c ON mc.category_id = c.id
+      WHERE m.id = ?
+      GROUP BY m.id
+      LIMIT 1
+    ";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param('i', $id);
     $stmt->execute();
@@ -60,7 +88,18 @@ if (!function_exists('getMovieById')) {
 if (!function_exists('searchMovies')) {
   function searchMovies($mysqli, $keyword, $limit = 24) {
     $k = '%' . $keyword . '%';
-    $sql = "SELECT m.*, c.name AS category_name FROM movies m LEFT JOIN categories c ON m.category_id = c.id WHERE m.title LIKE ? ORDER BY m.created_at DESC LIMIT ?";
+    $sql = "
+      SELECT 
+        m.*,
+        GROUP_CONCAT(c.name SEPARATOR ', ') AS category_name
+      FROM movies m
+      LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+      LEFT JOIN categories c ON mc.category_id = c.id
+      WHERE m.title LIKE ?
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+      LIMIT ?
+    ";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param('si', $k, $limit);
     $stmt->execute();
@@ -71,7 +110,18 @@ if (!function_exists('searchMovies')) {
 // Lấy phim theo thể loại
 if (!function_exists('getMoviesByCategory')) {
   function getMoviesByCategory($mysqli, $categoryId, $limit = 24) {
-    $sql = "SELECT m.*, c.name AS category_name FROM movies m LEFT JOIN categories c ON m.category_id = c.id WHERE c.id = ? ORDER BY m.created_at DESC LIMIT ?";
+    $sql = "
+      SELECT 
+        m.*,
+        GROUP_CONCAT(c.name SEPARATOR ', ') AS category_name
+      FROM movies m
+      JOIN movie_categories mc ON m.id = mc.movie_id
+      JOIN categories c ON mc.category_id = c.id
+      WHERE mc.category_id = ?
+      GROUP BY m.id
+      ORDER BY m.created_at DESC
+      LIMIT ?
+    ";
     $stmt = $mysqli->prepare($sql);
     $stmt->bind_param('ii', $categoryId, $limit);
     $stmt->execute();
