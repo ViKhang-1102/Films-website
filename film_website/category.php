@@ -1,19 +1,65 @@
-<?php include __DIR__ . '/includes/header.php'; ?>
-<?php include __DIR__ . '/includes/navbar.php'; ?>
-<?php require __DIR__ . '/includes/config.php'; ?>
-<?php require __DIR__ . '/includes/functions.php'; ?>
-
 <?php
+require __DIR__ . '/includes/config.php';
+require __DIR__ . '/includes/functions.php';
+include __DIR__ . '/includes/header.php';
+include __DIR__ . '/includes/navbar.php';
+
+$type = $_GET['type'] ?? '';        // 'single' hoặc 'series'
 $categoryId = (int)($_GET['id'] ?? 0);
-$cats = getCategories($mysqli);
+
+$whereClause = '';
+$params = [];
+$types = ''; // bind types string for mysqli
+
+// --- NEW: load thông tin thể loại nếu có id (để $currentCat không undefined)
 $currentCat = null;
-if ($categoryId) {
-  $stmt = $mysqli->prepare('SELECT * FROM categories WHERE id=?');
-  $stmt->bind_param('i', $categoryId);
-  $stmt->execute();
-  $currentCat = $stmt->get_result()->fetch_assoc();
+if ($categoryId > 0) {
+  $stmtCat = $mysqli->prepare('SELECT * FROM categories WHERE id = ? LIMIT 1');
+  $stmtCat->bind_param('i', $categoryId);
+  $stmtCat->execute();
+  $currentCat = $stmtCat->get_result()->fetch_assoc();
+  $stmtCat->close();
+
+  $whereClause = 'WHERE mc.category_id = ?';
+  $params[] = $categoryId;
+  $types .= 'i';
 }
-$movies = $categoryId ? getMoviesByCategory($mysqli, $categoryId, 48) : getMovies($mysqli, 48);
+
+$having = '';
+if ($type === 'single') {
+  // phim không có tập nào
+  $having = 'HAVING COUNT(DISTINCT e.id) = 0';
+} elseif ($type === 'series') {
+  // phim có 2 tập trở lên (bạn có thể đổi >=1 nếu muốn)
+  $having = 'HAVING COUNT(DISTINCT e.id) >= 2';
+}
+
+// SQL tổng hợp categories + đếm episode (DISTINCT để tránh nhân bản do nhiều thể loại)
+$sql = "
+  SELECT
+    m.*,
+    GROUP_CONCAT(DISTINCT c.name SEPARATOR ', ') AS category_name,
+    COUNT(DISTINCT e.id) AS episode_count
+  FROM movies m
+  LEFT JOIN movie_categories mc ON m.id = mc.movie_id
+  LEFT JOIN categories c ON mc.category_id = c.id
+  LEFT JOIN episodes e ON m.id = e.movie_id
+  {$whereClause}
+  GROUP BY m.id
+  {$having}
+  ORDER BY m.created_at DESC
+";
+
+// prepare + bind nếu cần
+if ($whereClause) {
+  $stmt = $mysqli->prepare($sql);
+  $stmt->bind_param($types, ...$params);
+  $stmt->execute();
+  $movies = $stmt->get_result();
+  $stmt->close();
+} else {
+  $movies = $mysqli->query($sql);
+}
 ?>
 
 <main class="container my-4 my-md-5">

@@ -170,5 +170,53 @@ if (!function_exists('userHasFavorite')) {
     return $stmt->get_result()->num_rows > 0;
   }
 }
+
+if (!function_exists('userHasWatchedMovie')) {
+  function userHasWatchedMovie($mysqli, $userId, $movieId) {
+    $stmt = $mysqli->prepare('SELECT 1 FROM watched WHERE user_id = ? AND movie_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $userId, $movieId);
+    $stmt->execute();
+    $res = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (bool)$res;
+  }
+}
+
+if (!function_exists('userHasWatchedEpisode')) {
+  function userHasWatchedEpisode($mysqli, $userId, $episodeId) {
+    $stmt = $mysqli->prepare('SELECT 1 FROM watched WHERE user_id = ? AND episode_id = ? LIMIT 1');
+    $stmt->bind_param('ii', $userId, $episodeId);
+    $stmt->execute();
+    $res = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (bool)$res;
+  }
+}
+
+if (!function_exists('markWatched')) {
+  function markWatched($mysqli, $userId, $movieId = null, $episodeId = null) {
+    // upsert-like: INSERT IGNORE then skip
+    $stmt = $mysqli->prepare('INSERT IGNORE INTO watched (user_id, movie_id, episode_id, watched_at) VALUES (?, ?, ?, NOW())');
+    $stmt->bind_param('iii', $userId, $movieId, $episodeId);
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+  }
+}
+
+if (!function_exists('unmarkWatched')) {
+  function unmarkWatched($mysqli, $userId, $movieId = null, $episodeId = null) {
+    if ($episodeId) {
+      $stmt = $mysqli->prepare('DELETE FROM watched WHERE user_id = ? AND episode_id = ?');
+      $stmt->bind_param('ii', $userId, $episodeId);
+    } else {
+      $stmt = $mysqli->prepare('DELETE FROM watched WHERE user_id = ? AND movie_id = ?');
+      $stmt->bind_param('ii', $userId, $movieId);
+    }
+    $ok = $stmt->execute();
+    $stmt->close();
+    return $ok;
+  }
+}
 ?>
 

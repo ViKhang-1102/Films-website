@@ -111,6 +111,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label class="form-label">Ảnh poster (URL)</label>
                 <input name="thumbnail" class="form-control bg-dark text-light border-secondary" value="<?php echo htmlspecialchars($movie['thumbnail']); ?>">
               </div>
+              <div class="col-12">
+                <label class="form-label">Link video (YouTube hoặc Google Drive)</label>
+                <input name="video_url" class="form-control bg-dark text-light border-secondary" placeholder="https://youtu.be/... hoặc https://drive.google.com/file/d/ID/..." value="<?php echo htmlspecialchars($editItem['video_url'] ?? ''); ?>">
+                <div class="form-text text-muted">Dùng cho phim lẻ / 1 tập. Nếu phim có nhiều tập, hãy quản lý link ở mục Quản lý tập.</div>
+              </div>
             </div>
 
             <!-- Thể loại -->
@@ -137,13 +142,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               </div>
             </div>
 
-            <div class="mt-4 d-flex gap-2 align-items-center">
-              <button class="btn btn-warning" type="submit">
-                <i class="fa-solid fa-save me-2"></i>Lưu thay đổi
-              </button>
-              <a class="btn btn-outline-info" href="<?php echo BASE_PATH; ?>/admin/manage_episodes.php?movie_id=<?php echo $id; ?>">
-                <i class="fa-solid fa-list me-1"></i>Quản lý tập phim
-              </a>
+            <div class="mt-3 d-flex gap-2">
+              <button class="btn btn-warning" type="submit"><i class="fa-solid fa-save me-2"></i>Lưu phim</button>
+
+              <!-- Nút mới: mở trang quản lý tập cho phim này -->
+              <?php if (!empty($editItem['id'])): ?>
+                <a class="btn btn-outline-info" href="<?php echo BASE_PATH; ?>/admin/manage_episodes.php?movie_id=<?php echo (int)$editItem['id']; ?>" title="Quản lý tập">
+                  <i class="fa-solid fa-list me-2"></i>Quản lý tập
+                </a>
+              <?php endif; ?>
             </div>
           </form>
         </div>

@@ -6,7 +6,7 @@
         <div class="container">
             <a class="navbar-brand d-flex align-items-center gap-2 fw-bold text-warning" href="/film_website/index.php">
                 <i class="fa-solid fa-film"></i>
-                Fimls
+                FilmsZone+
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar" aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
@@ -24,9 +24,8 @@
                         </ul>
                       </li>
                     <?php endif; ?>
-                    <li class="nav-item"><a class="nav-link" href="/film_website/category.php">Phim lẻ</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/film_website/category.php">Phim bộ</a></li>
-                    <li class="nav-item"><a class="nav-link" href="/film_website/category.php">Phim chiếu rạp</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/film_website/category.php?type=single">Phim lẻ</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/film_website/category.php?type=series">Phim bộ</a></li>
                     <li class="nav-item"><a class="nav-link" href="#footer">Liên hệ</a></li>
                 </ul>
                 <form class="d-flex me-3" role="search" action="/film_website/search.php" method="get">

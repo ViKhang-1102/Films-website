@@ -2,15 +2,15 @@
     <div class="container">
         <div class="row gy-4">
             <div class="col-md-4">
-                <h5 class="text-warning d-flex align-items-center gap-2"><i class="fa-solid fa-film"></i> Fimls</h5>
+                <h5 class="text-warning d-flex align-items-center gap-2"><i class="fa-solid fa-film"></i> FilmsZone+</h5>
                 <p class="text-secondary small">Trải nghiệm xem phim trực tuyến với giao diện hiện đại, tốc độ nhanh và kho phim phong phú.</p>
             </div>
             <div class="col-md-4">
                 <h6 class="text-light">Liên hệ</h6>
                 <ul class="list-unstyled text-secondary small">
-                    <li><i class="fa-solid fa-envelope me-2 text-warning"></i>support@fimls.local</li>
+                    <li><i class="fa-solid fa-envelope me-2 text-warning"></i>amin@gmail.com</li>
                     <li><i class="fa-solid fa-phone me-2 text-warning"></i>0123 456 789</li>
-                    <li><i class="fa-solid fa-location-dot me-2 text-warning"></i>Hà Nội, Việt Nam</li>
+                    <li><i class="fa-solid fa-location-dot me-2 text-warning"></i>Cần Thơ, Việt Nam</li>
                 </ul>
             </div>
             <div class="col-md-4">
@@ -23,7 +23,7 @@
             </div>
         </div>
         <hr class="border-secondary mt-4">
-        <div class="text-center text-secondary small">&copy; <span id="year"></span> Fimls. All rights reserved.</div>
+        <div class="text-center text-secondary small">&copy; <span id="year"></span> FilmsZone+. All rights reserved.</div>
     </div>
 </footer>
 

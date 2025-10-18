@@ -90,6 +90,42 @@ function getEmbedHtml(string $url, string $title = ''): string {
   // Bootstrap 5 ratio 16:9, bo tròn và shadow-sm
   return '<div class="ratio ratio-16x9 rounded shadow-sm overflow-hidden bg-black">' . $iframe . '</div>';
 }
+
+// Sau khi đã có $movie, $episodes, $videoUrl ...
+// Thêm trạng thái watched cho user
+$watchedMovie = false;
+$watchedEpisodes = [];
+if (isset($_SESSION['user'])) {
+  $uid = (int)$_SESSION['user']['id'];
+  $watchedMovie = userHasWatchedMovie($mysqli, $uid, (int)$movie['id']);
+  // load watched episodes ids cho movie (1 query)
+  $epIds = [];
+  $ids = [];
+  while($r = $episodes->fetch_assoc()) {
+    $ids[] = (int)$r['id'];
+    $epIds[$r['id']] = $r; // keep data
+  }
+  // reset episodes result pointer by recreating result set
+  if (!empty($ids)) {
+    // tạo danh sách id an toàn (đã cast sang int ở phía trên)
+    $in = implode(',', $ids);
+    $sql = 'SELECT episode_id FROM watched WHERE user_id = ? AND episode_id IN (' . $in . ')';
+    $stmt2 = $mysqli->prepare($sql);
+    $stmt2->bind_param('i', $uid); // chỉ bind user_id vì IDS đã là literal trong IN(...)
+    $stmt2->execute();
+    $res2 = $stmt2->get_result();
+    while($w = $res2->fetch_assoc()) {
+      $watchedEpisodes[(int)$w['episode_id']] = true;
+    }
+    $stmt2->close();
+  }
+  // rebuild episodes result for template: fetch again from DB
+  $stmt = $mysqli->prepare('SELECT * FROM episodes WHERE movie_id = ? ORDER BY episode_number ASC');
+  $stmt->bind_param('i', $id);
+  $stmt->execute();
+  $episodes = $stmt->get_result();
+  $stmt->close();
+}
 ?>
 
 <main class="container my-4 my-md-5">
@@ -118,10 +154,11 @@ function getEmbedHtml(string $url, string $title = ''): string {
           <?php else: ?>
             <span class="text-muted">Chưa phân loại</span>
           <?php endif; ?>
+         
         </div>
-        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Đạo diễn:</span> <strong>Nguyễn Văn A</strong></div>
-        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Diễn viên:</span> <strong>Trần B, Lê C</strong></div>
-        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Quốc gia:</span> <strong>Mỹ</strong></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Đạo diễn:</span> <strong>Chưa cập nhật</strong></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Diễn viên:</span> <strong>Chưa cập nhật</strong></div>
+        <div class="col-sm-6 col-lg-4"><span class="text-secondary">Quốc gia:</span> <strong>Chưa cập nhật</strong></div>
       </div>
 
       <div class="mt-4 d-flex gap-2 flex-wrap">
@@ -130,9 +167,22 @@ function getEmbedHtml(string $url, string $title = ''): string {
             <i class="fa-solid fa-list me-2"></i>Chọn tập phim
           </button>
         <?php else: ?>
-          <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#playerModal" <?php echo empty($movie['video_url']) ? 'disabled' : ''; ?>>
-            <i class="fa-solid fa-play me-2"></i>Xem ngay
-          </button>
+          <?php if (!empty($videoUrl)): ?>
+            <!-- Nếu movie có video_url: mở modal player (server-side đã in sẵn iframe trong #playerModal) -->
+            <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#playerModal">
+              <i class="fa-solid fa-play me-2"></i>Xem ngay
+            </button>
+          <?php else: ?>
+            <!-- Nếu không có video_url thì giữ chức năng đánh dấu đã xem -->
+            <form method="post" action="<?php echo BASE_PATH; ?>/watch.php" class="d-inline">
+              <input type="hidden" name="movie_id" value="<?php echo (int)$movie['id']; ?>">
+              <input type="hidden" name="redirect" value="<?php echo htmlspecialchars(BASE_PATH . '/movie.php?id=' . (int)$movie['id']); ?>">
+              <input type="hidden" name="action" value="<?php echo $watchedMovie ? 'unmark_movie' : 'mark_movie'; ?>">
+              <button class="btn <?php echo $watchedMovie ? 'btn-outline-success' : 'btn-warning'; ?>" type="submit">
+                <i class="fa-solid fa-play me-2"></i><?php echo $watchedMovie ? 'Đã xem' : 'Xem ngay'; ?>
+              </button>
+            </form>
+          <?php endif; ?>
         <?php endif; ?>
         
         <?php if (isset($_SESSION['user'])): ?>
@@ -161,7 +211,11 @@ function getEmbedHtml(string $url, string $title = ''): string {
     <div class="row g-3 g-md-4">
       <?php $similar = getMoviesByCategory($mysqli, (int)($movie['category_id'] ?? 0), 6); while($m=$similar->fetch_assoc()): if ((int)$m['id']===(int)$movie['id']) continue; ?>
       <div class="col-6 col-md-4 col-lg-2">
-        <div class="card movie-card h-100">
+        <div class="card movie-card h-100 position-relative">
+          <?php $simWatched = isset($_SESSION['user']) ? userHasWatchedMovie($mysqli, $_SESSION['user']['id'], (int)$m['id']) : false; ?>
+          <?php if ($simWatched): ?>
+            <span class="badge bg-success position-absolute" style="top:8px; right:8px; z-index:5;">Đã xem</span>
+          <?php endif; ?>
           <a href="/film_website/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
             <div class="movie-thumb">
               <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/400/600'); ?>" alt="<?php echo htmlspecialchars($m['title']); ?>">
@@ -211,6 +265,21 @@ function getEmbedHtml(string $url, string $title = ''): string {
                   <button class="btn btn-sm btn-warning play-episode" data-episode-id="<?php echo $episode['id']; ?>">
                     <i class="fa-solid fa-play me-1"></i>Xem
                   </button>
+
+                  <?php if (isset($_SESSION['user'])): ?>
+                    <form method="post" action="<?php echo BASE_PATH; ?>/watch.php" class="d-inline ms-2">
+                      <input type="hidden" name="episode_id" value="<?php echo (int)$episode['id']; ?>">
+                      <input type="hidden" name="redirect" value="<?php echo htmlspecialchars(BASE_PATH . '/movie.php?id=' . (int)$movie['id']); ?>">
+                      <input type="hidden" name="action" value="<?php echo !empty($watchedEpisodes[$episode['id']]) ? 'unmark_episode' : 'mark_episode'; ?>">
+                      <button class="btn btn-sm <?php echo !empty($watchedEpisodes[$episode['id']]) ? 'btn-outline-success' : 'btn-outline-light'; ?>">
+                        <?php if (!empty($watchedEpisodes[$episode['id']])): ?>
+                          <i class="fa-solid fa-check me-1"></i>Đã xem
+                        <?php else: ?>
+                          <i class="fa-regular fa-circle-play me-1"></i>Đánh dấu xem
+                        <?php endif; ?>
+                      </button>
+                    </form>
+                  <?php endif; ?>
                 </div>
               </div>
             </div>

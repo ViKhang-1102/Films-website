@@ -40,7 +40,8 @@ if ($action === 'edit') {
   $editItem = $stmt->get_result()->fetch_assoc();
 }
 
-$cats = getCategories($mysqli);
+// Lấy danh sách thể loại có cả mô tả
+$cats = $mysqli->query('SELECT id, name, description FROM categories ORDER BY name ASC');
 ?>
 
 <main class="container-fluid my-4 my-md-5">
@@ -55,16 +56,27 @@ $cats = getCategories($mysqli);
         <div class="card-body">
           <div class="table-responsive">
             <table class="table table-dark table-striped align-middle">
-              <thead><tr><th>#</th><th>Tên</th><th>Mô tả</th><th class="text-end">Thao tác</th></tr></thead>
+              <thead class="table-dark">
+                <tr>
+                  <th>#</th>
+                  <th>Tên</th>
+                  <th>Mô tả</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
               <tbody>
-                <?php $i=1; while($row=$cats->fetch_assoc()): ?>
+                <?php $i = 1; while ($c = $cats->fetch_assoc()): ?>
                 <tr>
                   <td><?php echo $i++; ?></td>
-                  <td><?php echo htmlspecialchars($row['name']); ?></td>
-                  <td class="small text-secondary"><?php echo htmlspecialchars($row['description'] ?? ''); ?></td>
-                  <td class="text-end">
-                    <a class="btn btn-sm btn-outline-warning" href="<?php echo BASE_PATH; ?>/admin/edit_category.php?id=<?php echo $row['id']; ?>"><i class="fa-regular fa-pen-to-square"></i></a>
-                    <a class="btn btn-sm btn-outline-danger" href="?action=delete&id=<?php echo $row['id']; ?>" onclick="return confirm('Bạn có chắc chắn muốn xóa không?');"><i class="fa-regular fa-trash-can"></i></a>
+                  <td><?php echo htmlspecialchars($c['name']); ?></td>
+                  <td><?php echo htmlspecialchars($c['description']); ?></td>
+                  <td>
+                    <a class="btn btn-sm btn-outline-warning" href="?action=edit&id=<?php echo $c['id']; ?>"><i class="fa-solid fa-pen"></i></a>
+                    <form method="post" style="display:inline" onsubmit="return confirm('Xóa thể loại?');">
+                      <input type="hidden" name="action" value="delete">
+                      <input type="hidden" name="id" value="<?php echo $c['id']; ?>">
+                      <button class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-trash"></i></button>
+                    </form>
                   </td>
                 </tr>
                 <?php endwhile; ?>

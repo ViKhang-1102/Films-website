@@ -23,32 +23,87 @@ if (!$movie) {
 
 $msg = '';
 
-// Xử lý thêm/sửa tập phim
+// Cập nhật video cho phim (nếu có gửi từ form)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'update_movie_video') {
+  $newVideo = sanitize($_POST['video_url'] ?? '');
+  $stmtUpd = $mysqli->prepare('UPDATE movies SET video_url = ? WHERE id = ?');
+  $stmtUpd->bind_param('si', $newVideo, $movie_id);
+  $stmtUpd->execute();
+  $stmtUpd->close();
+  redirect(BASE_PATH . "/admin/manage_episodes.php?movie_id={$movie_id}");
+}
+
+// gợi ý số tập tiếp theo
+$nextEpisode = 1;
+$stn = $mysqli->prepare('SELECT COALESCE(MAX(episode_number),0) + 1 AS next_ep FROM episodes WHERE movie_id = ?');
+$stn->bind_param('i', $movie_id);
+$stn->execute();
+$r = $stn->get_result()->fetch_assoc();
+$stn->close();
+if ($r && !empty($r['next_ep'])) $nextEpisode = (int)$r['next_ep'];
+
+// xử lý POST thêm / sửa / xóa tập
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? '';
-  
-  if ($action === 'add' || $action === 'edit') {
+  if ($action === 'add') {
+    $title = sanitize($_POST['title'] ?? '');
+    $episode_number = (int)($_POST['episode_number'] ?? $nextEpisode);
+    $duration = sanitize($_POST['duration'] ?? '');
+    $description = sanitize($_POST['description'] ?? '');
+    $video_url = sanitize($_POST['video_url'] ?? '');
+
+    // chuyển Drive link (nếu cần) - giữ behavior hiện tại
+    if (preg_match('#drive\.google\.com\/file\/d\/([^/]+)#', $video_url, $m)) {
+      $video_url = 'https://drive.google.com/uc?id=' . $m[1];
+    }
+
+    // kiểm tra đã tồn tại episode_number cho movie này
+    $chk = $mysqli->prepare('SELECT id FROM episodes WHERE movie_id = ? AND episode_number = ? LIMIT 1');
+    $chk->bind_param('ii', $movie_id, $episode_number);
+    $chk->execute();
+    $exists = $chk->get_result()->fetch_assoc();
+    $chk->close();
+
+    if ($exists) {
+      // nếu muốn báo lỗi thay vì update, thay bằng redirect + thông báo
+      $stmt = $mysqli->prepare('UPDATE episodes SET title=?, duration=?, description=?, video_url=?, updated_at=NOW() WHERE id=?');
+      $stmt->bind_param('ssssi', $title, $duration, $description, $video_url, $exists['id']);
+      if (!$stmt->execute()) {
+        $errorMsg = $mysqli->error;
+      }
+      $stmt->close();
+    } else {
+      $stmt = $mysqli->prepare('INSERT INTO episodes (movie_id, title, episode_number, duration, description, video_url, created_at) VALUES (?,?,?,?,?,?,NOW())');
+      $stmt->bind_param('isisss', $movie_id, $title, $episode_number, $duration, $description, $video_url);
+      if (!$stmt->execute()) {
+        $errorMsg = $mysqli->error;
+      }
+      $stmt->close();
+    }
+
+    // nếu có lỗi, hiển thị tạm (bỏ khi đã ổn)
+    if (!empty($errorMsg)) {
+      // debug: viết vào session để hiển thị ở trên trang admin
+      $_SESSION['admin_msg'] = 'DB error: ' . $errorMsg;
+    }
+
+    redirect(BASE_PATH . "/admin/manage_episodes.php?movie_id={$movie_id}");
+  } elseif ($action === 'edit') {
+    $episode_id = (int)($_POST['episode_id'] ?? 0);
     $title = sanitize($_POST['title'] ?? '');
     $episode_number = (int)($_POST['episode_number'] ?? 0);
     $description = sanitize($_POST['description'] ?? '');
     $video_url = sanitize($_POST['video_url'] ?? '');
     $duration = sanitize($_POST['duration'] ?? '');
-    
-    // Chuyển link Google Drive sang dạng uc?id=
+
+    // Chuyển link Google Drive sang dạng uc?id= (giữ behavior hiện tại)
     if (preg_match('#https?://drive\.google\.com/file/d/([^/]+)/view#', $video_url, $m)) {
       $video_url = 'https://drive.google.com/uc?id=' . $m[1];
     }
-    
-    if ($action === 'edit') {
-      $episode_id = (int)($_POST['episode_id'] ?? 0);
-      $stmt = $mysqli->prepare('UPDATE episodes SET title=?, episode_number=?, description=?, video_url=?, duration=? WHERE id=? AND movie_id=?');
-      $stmt->bind_param('sissisi', $title, $episode_number, $description, $video_url, $duration, $episode_id, $movie_id);
-      $msg = $stmt->execute() ? 'Cập nhật tập phim thành công!' : 'Cập nhật tập phim thất bại!';
-    } else {
-      $stmt = $mysqli->prepare('INSERT INTO episodes (movie_id, title, episode_number, description, video_url, duration) VALUES (?, ?, ?, ?, ?, ?)');
-      $stmt->bind_param('isisss', $movie_id, $title, $episode_number, $description, $video_url, $duration);
-      $msg = $stmt->execute() ? 'Thêm tập phim thành công!' : 'Thêm tập phim thất bại!';
-    }
+
+    $stmt = $mysqli->prepare('UPDATE episodes SET title=?, episode_number=?, description=?, video_url=?, duration=? WHERE id=? AND movie_id=?');
+    $stmt->bind_param('sisssii', $title, $episode_number, $description, $video_url, $duration, $episode_id, $movie_id);
+    $msg = $stmt->execute() ? 'Cập nhật tập phim thành công!' : 'Cập nhật tập phim thất bại!';
     $stmt->close();
   } elseif ($action === 'delete') {
     $episode_id = (int)($_POST['episode_id'] ?? 0);
@@ -74,21 +129,41 @@ if (isset($_GET['edit'])) {
 }
 ?>
 
-<main class="container-fluid my-4 my-md-5">
+<main class="container-fluid my-4">
   <div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="section-title m-0">Quản lý tập phim</h3>
     <div>
-      <h3 class="section-title m-0">Quản lý tập phim</h3>
-      <p class="text-secondary mb-0">Phim: <strong><?php echo htmlspecialchars($movie['title']); ?></strong></p>
-    </div>
-    <div>
-      <a class="btn btn-outline-warning me-2" href="<?php echo BASE_PATH; ?>/admin/manage_movies.php">
-        <i class="fa-solid fa-arrow-left me-1"></i>Quay lại
-      </a>
-      <button class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#episodeModal">
-        <i class="fa-solid fa-plus me-1"></i>Thêm tập mới
-      </button>
+      <a class="btn btn-outline-secondary" href="<?php echo BASE_PATH; ?>/admin/manage_movies.php"><i class="fa-solid fa-arrow-left"></i> Quay lại</a>
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#episodeAddModal"><i class="fa-solid fa-plus"></i> Thêm tập mới</button>
     </div>
   </div>
+
+  <?php
+  // Nếu phim có < 2 tập: cho form chỉnh video_url ở level movie (dùng cho phim lẻ / 1 tập)
+  $epCountRow = $mysqli->prepare('SELECT COUNT(*) c FROM episodes WHERE movie_id = ?');
+  $epCountRow->bind_param('i', $movie_id);
+  $epCountRow->execute();
+  $epCount = (int)$epCountRow->get_result()->fetch_assoc()['c'];
+  $epCountRow->close();
+
+  if ($epCount < 2):
+  ?>
+  <div class="card bg-black border-secondary mb-3">
+    <div class="card-body">
+      <h5 class="mb-3">Link video movie (áp dụng cho phim lẻ / 1 tập)</h5>
+      <form method="post" class="row g-2">
+        <input type="hidden" name="action" value="update_movie_video">
+        <div class="col-12">
+          <input name="video_url" class="form-control bg-dark text-light" placeholder="https://youtu.be/... hoặc https://drive.google.com/file/d/ID/..." value="<?php echo htmlspecialchars($movie['video_url'] ?? ''); ?>">
+          <div class="form-text text-muted">Nhập link YouTube hoặc Google Drive. Hệ thống sẽ lưu và dùng để nhúng khi người dùng bấm Xem ngay.</div>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-warning" type="submit"><i class="fa-solid fa-save me-1"></i>Lưu link movie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <?php endif; ?>
 
   <?php if (!empty($msg)): ?>
     <div class="alert <?php echo strpos($msg, 'thành công') !== false ? 'alert-success' : 'alert-danger'; ?>"><?php echo $msg; ?></div>
@@ -216,6 +291,32 @@ if (isset($_GET['edit'])) {
           <button type="submit" class="btn btn-warning">
             <i class="fa-solid fa-save me-1"></i>Lưu tập phim
           </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Thêm -->
+<div class="modal fade" id="episodeAddModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content bg-dark text-light">
+      <form method="post">
+        <div class="modal-header">
+          <h5 class="modal-title">Thêm tập mới cho: <?php echo htmlspecialchars($movie['title']); ?></h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="action" value="add">
+          <div class="mb-2"><label class="form-label">Tiêu đề</label><input name="title" class="form-control bg-dark text-light"></div>
+          <div class="mb-2"><label class="form-label">Số tập</label><input name="episode_number" type="number" class="form-control bg-dark text-light" value="<?php echo $nextEpisode; ?>"></div>
+          <div class="mb-2"><label class="form-label">Thời lượng</label><input name="duration" class="form-control bg-dark text-light"></div>
+          <div class="mb-2"><label class="form-label">Link video (YouTube hoặc Google Drive)</label><input name="video_url" class="form-control bg-dark text-light" placeholder="https://..."></div>
+          <div class="mb-2"><label class="form-label">Mô tả</label><textarea name="description" rows="3" class="form-control bg-dark text-light"></textarea></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light" type="submit">Thêm</button>
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Hủy</button>
         </div>
       </form>
     </div>

@@ -157,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <button class="btn btn-warning" type="submit">
             <i class="fa-solid fa-save me-2"></i>Lưu phim
           </button>
-          <small class="text-secondary">Hệ thống tự chuyển link Drive sang dạng nhúng.</small>
+          <div class="text-secondary ms-2">Ghi chú: hệ thống tự chuyển link Drive sang dạng nhúng khi lưu phim.</div>
         </div>
       </form>
     </div>
@@ -167,58 +167,132 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   let episodeCount = 0;
-  
-  // Thêm tập phim mới
-  document.getElementById('addEpisode').addEventListener('click', function() {
-    episodeCount++;
-    const container = document.getElementById('episodesContainer');
-    
-    const episodeHtml = `
-      <div class="card bg-dark border-secondary mb-3 episode-item" data-episode="${episodeCount}">
+  const container = document.getElementById('episodesContainer');
+
+  // Helper: nhận diện YouTube/Drive nhanh
+  function isValidVideoUrl(url) {
+    if (!url) return false;
+    url = url.trim();
+    if (/youtube\.com|youtu\.be/.test(url)) return true;
+    if (/drive\.google\.com/.test(url)) return true;
+    // cho phép các url khác (mp4...) -> return true nếu cần
+    return true;
+  }
+
+  // Hàm tạo HTML cho 1 tập (bao gồm nút Lưu tập)
+  function createEpisodeHtml(n) {
+    return `
+      <div class="card bg-dark border-secondary mb-3 episode-item" data-episode="${n}">
         <div class="card-header d-flex justify-content-between align-items-center">
-          <h6 class="mb-0 text-warning">Tập ${episodeCount}</h6>
-          <button type="button" class="btn btn-sm btn-outline-danger remove-episode">
-            <i class="fa-solid fa-trash"></i>
-          </button>
+          <h6 class="mb-0 text-warning">Tập ${n}</h6>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-sm btn-success save-episode" title="Lưu tạm tập">
+              <i class="fa-solid fa-check"></i> Lưu tập
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger remove-episode" title="Xóa tập">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </div>
         </div>
         <div class="card-body">
           <div class="row g-3">
             <div class="col-md-6">
-              <label class="form-label">Tên tập</label>
-              <input type="text" name="episodes[${episodeCount}][title]" class="form-control bg-dark text-light border-secondary" placeholder="Tập 1: Khởi đầu">
+              <label class="form-label text-light fw-semibold">Tên tập <span class="text-secondary small">(ví dụ: Tập 1 - Giới thiệu)</span></label>
+              <input type="text" name="episodes[${n}][title]" class="form-control bg-dark text-light border-secondary" placeholder="Nhập tiêu đề tập, ví dụ: Tập 1 - Giới thiệu" aria-label="Tiêu đề tập ${n}">
             </div>
             <div class="col-md-3">
-              <label class="form-label">Số tập</label>
-              <input type="number" name="episodes[${episodeCount}][episode_number]" class="form-control bg-dark text-light border-secondary" value="${episodeCount}" min="1">
+              <label class="form-label text-light fw-semibold">Số tập</label>
+              <input type="number" name="episodes[${n}][episode_number]" class="form-control bg-dark text-light border-secondary" value="${n}" min="1" aria-label="Số tập">
             </div>
             <div class="col-md-3">
-              <label class="form-label">Thời lượng</label>
-              <input type="text" name="episodes[${episodeCount}][duration]" class="form-control bg-dark text-light border-secondary" placeholder="45 phút">
+              <label class="form-label text-light fw-semibold">Thời lượng</label>
+              <input type="text" name="episodes[${n}][duration]" class="form-control bg-dark text-light border-secondary" placeholder="Ví dụ: 45 phút" aria-label="Thời lượng">
             </div>
             <div class="col-12">
-              <label class="form-label">Mô tả ngắn</label>
-              <textarea name="episodes[${episodeCount}][description]" rows="2" class="form-control bg-dark text-light border-secondary" placeholder="Mô tả ngắn về tập này..."></textarea>
+              <label class="form-label text-light fw-semibold">Mô tả ngắn</label>
+              <textarea name="episodes[${n}][description]" rows="2" class="form-control bg-dark text-light border-secondary" placeholder="Mô tả ngắn về nội dung tập..." aria-label="Mô tả tập"></textarea>
             </div>
             <div class="col-12">
-              <label class="form-label">Link video</label>
-              <input type="url" name="episodes[${episodeCount}][video_url]" class="form-control bg-dark text-light border-secondary" placeholder="https://drive.google.com/file/d/ID/view?... hoặc URL">
+              <label class="form-label text-light fw-semibold">Link video (YouTube hoặc Google Drive)</label>
+              <div class="input-group">
+                <input type="url" name="episodes[${n}][video_url]" class="form-control bg-dark text-light border-secondary episode-video-url" placeholder="https://drive.google.com/file/d/ID/view hoặc https://youtu.be/..." aria-label="Link video tập ${n}">
+                <button type="button" class="btn btn-outline-light btn-sm check-url" title="Kiểm tra URL"><i class="fa-solid fa-link"></i></button>
+              </div>
+              <div class="form-text text-muted">Nhập link YouTube hoặc Google Drive. Hệ thống sẽ chuyển Drive sang dạng nhúng khi lưu.</div>
+              <!-- hidden saved flag -->
+              <input type="hidden" name="episodes[${n}][saved]" class="episode-saved" value="0">
             </div>
           </div>
         </div>
       </div>
     `;
-    
-    container.insertAdjacentHTML('beforeend', episodeHtml);
+  }
+
+  // Thêm tập mới
+  document.getElementById('addEpisode').addEventListener('click', function() {
+    episodeCount++;
+    container.insertAdjacentHTML('beforeend', createEpisodeHtml(episodeCount));
   });
-  
-  // Xóa tập phim
+
+  // Xử lý click toàn cục: Xóa, Lưu tập, Kiểm tra URL
   document.addEventListener('click', function(e) {
+    // Xóa tập
     if (e.target.closest('.remove-episode')) {
-      e.target.closest('.episode-item').remove();
+      const card = e.target.closest('.episode-item');
+      if (card) card.remove();
+      return;
+    }
+
+    // Lưu tập (client-side mark)
+    if (e.target.closest('.save-episode')) {
+      const card = e.target.closest('.episode-item');
+      if (!card) return;
+      const title = card.querySelector('input[name^="episodes"][name$="[title]"]').value.trim();
+      const videoInput = card.querySelector('.episode-video-url');
+      const url = videoInput ? videoInput.value.trim() : '';
+      if (!title) {
+        alert('Vui lòng nhập tên tập trước khi lưu.');
+        return;
+      }
+      if (!isValidVideoUrl(url)) {
+        if (!confirm('URL có vẻ không phải YouTube/Drive. Vẫn lưu chứ?')) return;
+      }
+      // Đánh dấu đã lưu tạm
+      const savedInput = card.querySelector('.episode-saved');
+      if (savedInput) savedInput.value = '1';
+      card.classList.remove('border-secondary');
+      card.classList.add('border-success');
+      // hiển thị tạm badge "Đã lưu"
+      if (!card.querySelector('.saved-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-success ms-2 saved-badge';
+        badge.innerText = 'Đã lưu';
+        card.querySelector('.card-header h6').appendChild(badge);
+      }
+      return;
+    }
+
+    // Kiểm tra URL (mở preview nhỏ nếu muốn)
+    if (e.target.closest('.check-url')) {
+      const btn = e.target.closest('.check-url');
+      const row = btn.closest('.card-body') || btn.closest('.episode-item');
+      const urlInput = row.querySelector('.episode-video-url');
+      const url = urlInput ? urlInput.value.trim() : '';
+      if (!url) {
+        alert('Chưa nhập URL video.');
+        return;
+      }
+      if (/drive\.google\.com/.test(url)) {
+        alert('Drive link detected — hệ thống sẽ chuyển sang dạng nhúng khi lưu.');
+      } else if (/youtu(be)?\.com|youtu\.be/.test(url)) {
+        alert('YouTube link detected.');
+      } else {
+        alert('URL đã nhập: ' + url);
+      }
     }
   });
-  
-  // Thêm tập đầu tiên mặc định
+
+  // Thêm 1 tập mặc định lúc load
   document.getElementById('addEpisode').click();
 });
 </script>

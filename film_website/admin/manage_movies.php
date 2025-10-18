@@ -71,8 +71,8 @@ $cats = getCategories($mysqli);
 $movies = $mysqli->query('
   SELECT 
     m.*,
-    GROUP_CONCAT(c.name SEPARATOR ", ") AS categories,
-    COUNT(e.id) AS episode_count
+    GROUP_CONCAT(DISTINCT c.name SEPARATOR ", ") AS categories,
+    COUNT(DISTINCT e.id) AS episode_count
   FROM movies m 
   LEFT JOIN movie_categories mc ON m.id = mc.movie_id
   LEFT JOIN categories c ON mc.category_id = c.id
