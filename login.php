@@ -1,7 +1,11 @@
-<?php include __DIR__ . '/includes/header.php'; ?>
-<?php include __DIR__ . '/includes/navbar.php'; ?>
-<?php require __DIR__ . '/includes/config.php'; ?>
-<?php require __DIR__ . '/includes/functions.php'; ?>
+<?php
+// load cấu hình + hàm trước để có BASE_PATH, session, ob_start...
+require __DIR__ . '/includes/config.php';
+require __DIR__ . '/includes/functions.php';
+
+include __DIR__ . '/includes/header.php';
+include __DIR__ . '/includes/navbar.php';
+?>
 
 <?php
 $error = '';
@@ -66,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <button type="submit" class="btn btn-warning w-100">Đăng nhập</button>
       </form>
       <hr class="border-secondary my-4">
-      <p class="text-center text-secondary m-0">Chưa có tài khoản? <a href="/film_website/register.php" class="text-warning">Đăng ký</a></p>
+      <p class="text-center text-secondary m-0">Chưa có tài khoản? <a href="<?php echo rtrim(BASE_PATH, '/'); ?>/register.php" class="text-warning">Đăng ký</a></p>
     </div>
   </div>
 </main>

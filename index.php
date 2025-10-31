@@ -89,45 +89,45 @@
   <section class="container my-5">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="section-title m-0">Phim đề xuất</h3>
-      <a href="/film_website/category.php" class="text-warning">Xem tất cả <i class="fa-solid fa-arrow-right"></i></a>
+      <a href="/category.php" class="text-warning">Xem tất cả <i class="fa-solid fa-arrow-right"></i></a>
     </div>
     <div class="row g-3 g-md-4">
-      <?php $movies = getMovies($mysqli, 8); while($m = $movies->fetch_assoc()): ?>
-      <div class="col-6 col-md-3">
-        <div class="card movie-card h-100">
-          <a href="/film_website/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
-            <div class="movie-thumb">
-              <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/400/600'); ?>" alt="<?php echo htmlspecialchars($m['title']); ?>">
-            </div>
-            <div class="card-body">
-              <h6 class="card-title"><?php echo htmlspecialchars($m['title']); ?></h6>
-              <?php
+      <?php $movies = getMovies($mysqli, 8);
+      while ($m = $movies->fetch_assoc()): ?>
+        <div class="col-6 col-md-3">
+          <div class="card movie-card h-100">
+            <a href="/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
+              <div class="movie-thumb">
+                <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/400/600'); ?>" alt="<?php echo htmlspecialchars($m['title']); ?>">
+              </div>
+              <div class="card-body">
+                <h6 class="card-title"><?php echo htmlspecialchars($m['title']); ?></h6>
+                <?php
                 $ep_count = (int)($m['episode_count'] ?? 0);
                 $duration = trim($m['duration'] ?? '');
-              ?>
-              <div class="movie-meta d-flex justify-content-between align-items-center">
-                <span><i class="fa-regular fa-calendar me-1"></i><?php echo htmlspecialchars($m['year']); ?></span>
+                ?>
+                <div class="movie-meta d-flex justify-content-between align-items-center">
+                  <span><i class="fa-regular fa-calendar me-1"></i><?php echo htmlspecialchars($m['year']); ?></span>
 
-                <?php if ($ep_count >= 2): ?>
-                  <span class="badge bg-info text-dark"><?php echo $ep_count; ?> tập</span>
-                <?php elseif ($duration !== ''): ?>
-                  <span class="badge text-bg-dark border border-secondary"><i class="fa-regular fa-clock me-1"></i><?php echo htmlspecialchars($duration); ?></span>
-                <?php else: ?>
-                  <span class="text-secondary small">N/A</span>
-                <?php endif; ?>
-              </div>
+                  <?php if ($ep_count >= 2): ?>
+                    <span class="badge bg-info text-dark"><?php echo $ep_count; ?> tập</span>
+                  <?php elseif ($duration !== ''): ?>
+                    <span class="badge text-bg-dark border border-secondary"><i class="fa-regular fa-clock me-1"></i><?php echo htmlspecialchars($duration); ?></span>
+                  <?php else: ?>
+                    <span class="text-secondary small">N/A</span>
+                  <?php endif; ?>
+                </div>
 
-              <div class="mt-3 d-grid">
-                <span class="btn btn-warning btn-sm">Xem ngay</span>
+                <div class="mt-3 d-grid">
+                  <span class="btn btn-warning btn-sm">Xem ngay</span>
+                </div>
               </div>
-            </div>
-          </a>
+            </a>
+          </div>
         </div>
-      </div>
       <?php endwhile; ?>
     </div>
   </section>
 </main>
 
 <?php include __DIR__ . '/includes/footer.php'; ?>
-

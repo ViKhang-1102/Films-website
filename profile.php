@@ -33,7 +33,7 @@
             <?php endif; while($m=$favs->fetch_assoc()): ?>
             <div class="col-6 col-lg-4">
               <div class="card movie-card h-100">
-                <a href="/film_website/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
+                <a href="/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
                   <div class="movie-thumb">
                     <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/400/600'); ?>" alt="<?php echo htmlspecialchars($m['title']); ?>">
                   </div>

@@ -206,7 +206,7 @@ if (isset($_SESSION['user'])) {
   <div class="mt-5">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="section-title m-0">Phim tương tự</h4>
-      <a href="/film_website/category.php" class="text-warning">Xem thêm <i class="fa-solid fa-arrow-right"></i></a>
+      <a href="/category.php" class="text-warning">Xem thêm <i class="fa-solid fa-arrow-right"></i></a>
     </div>
     <div class="row g-3 g-md-4">
       <?php $similar = getMoviesByCategory($mysqli, (int)($movie['category_id'] ?? 0), 6); while($m=$similar->fetch_assoc()): if ((int)$m['id']===(int)$movie['id']) continue; ?>
@@ -216,7 +216,7 @@ if (isset($_SESSION['user'])) {
           <?php if ($simWatched): ?>
             <span class="badge bg-success position-absolute" style="top:8px; right:8px; z-index:5;">Đã xem</span>
           <?php endif; ?>
-          <a href="/film_website/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
+          <a href="/movie.php?id=<?php echo $m['id']; ?>" class="text-decoration-none text-light">
             <div class="movie-thumb">
               <img src="<?php echo htmlspecialchars($m['thumbnail'] ?: 'https://picsum.photos/400/600'); ?>" alt="<?php echo htmlspecialchars($m['title']); ?>">
             </div>
